@@ -1,0 +1,162 @@
+#HomeLab services
+# Homarr - Dashboard - DONE
+# Gluetun - VPN client - DONE
+# JellyFin - Media server - DONE
+# QBitTorrent - Torrent client - DONE
+# Portainer - Docker manager - DONE
+# Sonarr - TV show manager - DONE
+# Radarr - Movie manager - DONE
+
+# Watchtower - Auto update containers 
+# Home Assistant - Home automation
+# Pi-hole - DNS server
+# Minecraft - Game server
+
+
+version: '3.8'
+
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    ports:
+      - 9000:9000
+    volumes:
+      - ./config/portainer:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  homarr:
+    image: ghcr.io/ajnart/homarr:latest
+    container_name: homarr
+    ports:
+      - 7575:7575
+    volumes:
+      - ./config/homarr:/app/data/configs
+    restart: unless-stopped
+  
+  jellyfin:
+    image: jellyfin/jellyfin
+    container_name: jellyfin
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - ./config/jellyfin:/config
+      - ./media:/media
+    ports:
+      - 8096:8096
+    restart: unless-stopped
+    
+# These services are dependent on the VPN service
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    environment:
+      - VPN_SERVICE_PROVIDER=nordvpn
+      - VPN_TYPE=openvpn
+      - OPENVPN_USER=${OPENVPN_USER}
+      - OPENVPN_PASSWORD=${OPENVPN_PASSWORD}
+      - SERVER_COUNTRIES=Netherlands
+    volumes:
+      - ./config/gluetun:/gluetun
+    ports:
+      - 8888:8888 # gluetun
+      - 8080:8080 # qBittorrent
+      - 6881:6881 # qBittorrent
+      - 6881:6881/udp # qBittorrent
+      - 8989:8989 # Sonarr
+      - 7878:7878 # Radarr
+      - 9696:9696 # Prowlarr
+      - 8191:8191 # flareSolverr
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+
+  qbittorrent:
+    image: linuxserver/qbittorrent
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+      - WEBUI_PORT=8080
+    volumes:
+      - ./config/qbittorrent:/config
+      - ./downloads:/downloads
+    depends_on:
+      gluetun:
+        condition: service_healthy
+        
+    network_mode: "service:gluetun"
+    restart: unless-stopped
+
+  flaresolverr:
+    image: "flaresolverr/flaresolverr:latest"
+    container_name: flaresolverr
+    environment:
+      - LOG_LEVEL=info
+    volumes:
+      - ./config/flaresolverr:/config
+    network_mode: "service:gluetun"
+    restart: unless-stopped
+
+  sonarr:
+      image: linuxserver/sonarr
+      container_name: sonarr
+      environment:
+        - PUID=1000
+        - PGID=1000
+        - TZ=Europe/London
+      volumes:
+        - ./config/sonarr:/config
+        - ./downloads:/downloads
+        - ./media/tv:/tv
+      network_mode: "service:gluetun"
+      restart: unless-stopped
+
+  radarr:
+    image: linuxserver/radarr
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - ./config/radarr:/config
+      - ./downloads:/downloads
+      - ./media/movies:/movies
+    network_mode: "service:gluetun"
+    restart: unless-stopped
+
+  prowlarr:
+    image: linuxserver/prowlarr
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - ./config/prowlarr:/config
+    network_mode: "service:gluetun"
+    restart: unless-stopped
+
+  
+
+volumes:
+  homarr:
+  gluetun:
+  qbittorrent:
+  sonarr:
+  radarr:
+  prowlarr:
+  jellyfin:
+  downloads:
+  tv:
+  movies:
+  media:
+  portainer:
+  flaresolverr:
+
+
