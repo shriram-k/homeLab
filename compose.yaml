@@ -38,6 +38,7 @@ services:
   jellyfin:
     image: jellyfin/jellyfin
     container_name: jellyfin
+    network_mode: "host"
     environment:
       - PUID=1000
       - PGID=1000
@@ -45,8 +46,6 @@ services:
     volumes:
       - ./config/jellyfin:/config
       - ./media:/media
-    ports:
-      - 8096:8096
     restart: unless-stopped
     
 # These services are dependent on the VPN service
